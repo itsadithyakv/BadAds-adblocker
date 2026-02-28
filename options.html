@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BadAds</title>
+    <link rel="stylesheet" href="options.css">
+</head>
+<body>
+    <main class="panel">
+        <header class="topbar">
+            <img src="icons/logoBar.png" class="logoBar" alt="BadAds">
+            <p id="statusText" class="status">Protected</p>
+        </header>
+        <button id="toggleBtn" class="toggle">Pause</button>
+
+        <section class="stats">
+            <article class="card">
+                <p class="label">Popups closed</p>
+                <p id="blockedCount" class="value">0</p>
+            </article>
+            <article class="card">
+                <p class="label">Whitelisted sites</p>
+                <p id="whitelistCount" class="value">0</p>
+            </article>
+        </section>
+
+        <section class="whitelist">
+            <div class="section-head">
+                <h2>Whitelist</h2>
+                <button id="allowCurrentSite" class="ghost">Allow current site</button>
+            </div>
+            <p class="help">Sites in this list can open popups without being blocked.</p>
+
+            <div class="form-row">
+                <input type="text" id="whitelistInput" placeholder="example.com">
+                <button id="addWhitelist">Add</button>
+            </div>
+
+            <ul id="whitelistList" class="list"></ul>
+        </section>
+    </main>
+
+    <script src="options.js"></script>
+</body>
+</html>

@@ -1,15 +1,22 @@
 {
   "manifest_version": 3,
   "name": "BadAds",
-  "version": "1.0",
-  "description": "Blocks cross-domain ad tabs with stats & toggle.",
-  "permissions": ["tabs", "storage"],
-  "host_permissions": ["<all_urls>"],
+  "version": "1.3",
+  "description": "Smart popup and new-tab ad blocker.",
+  "permissions": [
+    "tabs",
+    "storage",
+    "webNavigation"
+  ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_popup": "popup.html",
-    "default_title": "BadAds"
+    "default_popup": "options.html",
+    "default_icon": {
+      "16": "icons/logoOn.png",
+      "48": "icons/logoOn.png",
+      "128": "icons/logoOn.png"
+    }
   }
 }
