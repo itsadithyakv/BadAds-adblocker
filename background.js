@@ -99,10 +99,10 @@ function getIconPath(enabled) {
 function refreshToolbar(enabled, blockedCount) {
     chrome.action.setIcon({ path: getIconPath(enabled) });
 
-    const badgeText = enabled ? (blockedCount > 0 ? String(blockedCount) : "ON") : "OFF";
+    const badgeText = blockedCount > 0 ? String(blockedCount) : "";
     chrome.action.setBadgeText({ text: badgeText });
-    chrome.action.setBadgeBackgroundColor({ color: enabled ? "#ffffff" : "#000000" });
-    chrome.action.setBadgeTextColor({ color: enabled ? "#000000" : "#ffffff" });
+    chrome.action.setBadgeBackgroundColor({ color: "#ffffff" });
+    chrome.action.setBadgeTextColor({ color: "#000000" });
     chrome.action.setTitle({
         title: `BadAds: ${enabled ? "Protected" : "Paused"} | Popups Closed: ${blockedCount || 0}`
     });
