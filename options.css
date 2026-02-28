@@ -116,6 +116,22 @@ button {
     font-weight: 700;
 }
 
+.value.bump {
+    animation: count-bump 220ms ease-out;
+}
+
+@keyframes count-bump {
+    0% {
+        transform: scale(1);
+    }
+    45% {
+        transform: scale(1.12);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
 .whitelist {
     background: var(--bg-soft);
     border: 1px solid var(--line);

@@ -7,6 +7,7 @@ BadAds is a Chrome extension that blocks intrusive ad and popup tabs with a simp
 - Smart popup blocking using:
   - ad-related URL/domain signal matching
   - cross-domain popup detection
+  - script-based `window.open` detection with opener-tab follow-up checks
 - Whitelist support:
   - manually add allowed domains
   - quick add current site
@@ -23,7 +24,7 @@ BadAds is a Chrome extension that blocks intrusive ad and popup tabs with a simp
 
 ## How It Works
 
-When a new navigation target tab is created, BadAds evaluates the source and destination domains and checks for ad-like patterns. Tabs that match blocking rules are closed unless a whitelist rule applies.
+BadAds listens for both browser-level popup tab creation and page script popup attempts (`window.open`). It evaluates source and destination domains, checks ad-like patterns, and closes tabs that match blocking rules unless a whitelist rule applies.
 
 ## Installation (Development)
 
@@ -38,6 +39,8 @@ When a new navigation target tab is created, BadAds evaluates the source and des
 BadAds-adblocker/
   manifest.json
   background.js
+  content.js
+  injected-open-hook.js
   options.html
   options.css
   options.js

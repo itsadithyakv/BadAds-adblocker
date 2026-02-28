@@ -26,7 +26,11 @@ const AD_KEYWORDS = [
 
 const AD_REGEX = new RegExp(AD_KEYWORDS.join("|"), "i");
 const USER_GESTURE_ALLOW_MS = 4500;
+const SCRIPT_POPUP_RETRY_COUNT = 6;
+const SCRIPT_POPUP_RETRY_DELAY_MS = 200;
+const TAB_BLOCK_CACHE_MS = 15000;
 const lastUserInteractionByTab = new Map();
+const blockedTabTimestamps = new Map();
 const TRUSTED_SITE_ALLOWLIST = [
     "linkedin.com",
     "instagram.com",
@@ -74,6 +78,36 @@ function isTrustedSite(host) {
 function isLikelyAdUrl(url) {
     if (!url) return false;
     return AD_REGEX.test(url);
+}
+
+function toAbsoluteUrl(targetUrl, sourceUrl) {
+    if (!targetUrl) return null;
+    try {
+        return new URL(targetUrl, sourceUrl || undefined).href;
+    } catch {
+        return null;
+    }
+}
+
+function markTabAsBlocked(tabId) {
+    if (typeof tabId !== "number" || tabId < 0) return false;
+
+    const now = Date.now();
+    blockedTabTimestamps.forEach((timestamp, cachedTabId) => {
+        if (now - timestamp > TAB_BLOCK_CACHE_MS) {
+            blockedTabTimestamps.delete(cachedTabId);
+        }
+    });
+
+    if (blockedTabTimestamps.has(tabId)) return false;
+    blockedTabTimestamps.set(tabId, now);
+    return true;
+}
+
+function closeAndRecordBlockedTab(tabId, domain, reason) {
+    if (!markTabAsBlocked(tabId)) return;
+    chrome.tabs.remove(tabId);
+    recordBlocked(domain, reason);
 }
 
 function shouldBlockTarget({ targetUrl, sourceUrl, whitelist, recentUserInteraction }) {
@@ -187,8 +221,7 @@ function evaluateAndBlock(details, urlFromEvent) {
                 recentUserInteraction: false
             });
             if (result.block) {
-                chrome.tabs.remove(details.tabId);
-                recordBlocked(result.targetHost || "unknown", result.reason);
+                closeAndRecordBlockedTab(details.tabId, result.targetHost || "unknown", result.reason);
             }
             return;
         }
@@ -206,18 +239,94 @@ function evaluateAndBlock(details, urlFromEvent) {
             });
 
             if (result.block) {
-                chrome.tabs.remove(details.tabId);
-                recordBlocked(result.targetHost || "unknown", result.reason);
+                closeAndRecordBlockedTab(details.tabId, result.targetHost || "unknown", result.reason);
             }
         });
     });
 }
 
-chrome.runtime.onMessage.addListener((message, sender) => {
-    if (message?.type !== "USER_INTERACTION") return;
-    if (!sender?.tab?.id) return;
+function tryBlockScriptPopupTabs({
+    sourceTabId,
+    sourceUrl,
+    targetUrl,
+    whitelist,
+    recentUserInteraction,
+    attempt
+}) {
+    chrome.tabs.query({ openerTabId: sourceTabId }, (tabs) => {
+        if (chrome.runtime.lastError) return;
 
-    lastUserInteractionByTab.set(sender.tab.id, Number(message.time) || Date.now());
+        let blockedAny = false;
+        for (const popupTab of tabs || []) {
+            if (typeof popupTab?.id !== "number" || popupTab.id < 0) continue;
+
+            const candidateUrl = popupTab.pendingUrl || popupTab.url || targetUrl;
+            if (!candidateUrl) continue;
+
+            const result = shouldBlockTarget({
+                targetUrl: candidateUrl,
+                sourceUrl,
+                whitelist,
+                recentUserInteraction
+            });
+
+            if (!result.block) continue;
+            blockedAny = true;
+            closeAndRecordBlockedTab(
+                popupTab.id,
+                result.targetHost || getHost(candidateUrl) || "unknown",
+                `script-${result.reason}`
+            );
+        }
+
+        if (blockedAny || attempt >= SCRIPT_POPUP_RETRY_COUNT) return;
+
+        setTimeout(() => {
+            tryBlockScriptPopupTabs({
+                sourceTabId,
+                sourceUrl,
+                targetUrl,
+                whitelist,
+                recentUserInteraction,
+                attempt: attempt + 1
+            });
+        }, SCRIPT_POPUP_RETRY_DELAY_MS);
+    });
+}
+
+function handleScriptPopupAttempt(message, sender) {
+    const sourceTabId = sender?.tab?.id;
+    if (typeof sourceTabId !== "number" || sourceTabId < 0) return;
+
+    chrome.storage.local.get(["enabled", "whitelist"], (state) => {
+        if (!state.enabled) return;
+
+        const sourceUrl = message.sourceUrl || sender.tab?.url || sender.tab?.pendingUrl || null;
+        const targetUrl = toAbsoluteUrl(message.targetUrl, sourceUrl) || message.targetUrl || null;
+        const lastInteraction = lastUserInteractionByTab.get(sourceTabId) || 0;
+        const recentUserInteraction = Date.now() - lastInteraction <= USER_GESTURE_ALLOW_MS;
+
+        tryBlockScriptPopupTabs({
+            sourceTabId,
+            sourceUrl,
+            targetUrl,
+            whitelist: state.whitelist || [],
+            recentUserInteraction,
+            attempt: 0
+        });
+    });
+}
+
+chrome.runtime.onMessage.addListener((message, sender) => {
+    if (message?.type === "USER_INTERACTION") {
+        if (!sender?.tab?.id) return;
+        lastUserInteractionByTab.set(sender.tab.id, Number(message.time) || Date.now());
+        return;
+    }
+
+    if (message?.type === "SCRIPT_POPUP_ATTEMPT") {
+        handleScriptPopupAttempt(message, sender);
+    }
 });
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -239,6 +348,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 chrome.webNavigation.onCreatedNavigationTarget.addListener((details) => {
     evaluateAndBlock(details, details.url || null);
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+    lastUserInteractionByTab.delete(tabId);
+    blockedTabTimestamps.delete(tabId);
 });
 
 ensureState((state) => refreshToolbar(state.enabled, state.blockedCount));

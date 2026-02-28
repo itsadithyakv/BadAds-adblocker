@@ -7,6 +7,7 @@ const addWhitelistBtn = document.getElementById("addWhitelist");
 const allowCurrentSiteBtn = document.getElementById("allowCurrentSite");
 const resetCounterBtn = document.getElementById("resetCounterBtn");
 const whitelistList = document.getElementById("whitelistList");
+let previousBlockedCount = null;
 
 function normalizeSite(value) {
     let site = String(value || "").trim().toLowerCase();
@@ -42,6 +43,12 @@ function renderState(data) {
     statusText.textContent = enabled ? "Protection is active" : "Protection is paused";
     toggleBtn.textContent = enabled ? "Pause" : "Resume";
     blockedCountEl.textContent = String(blocked);
+    if (previousBlockedCount !== null && blocked !== previousBlockedCount) {
+        blockedCountEl.classList.remove("bump");
+        void blockedCountEl.offsetWidth;
+        blockedCountEl.classList.add("bump");
+    }
+    previousBlockedCount = blocked;
     whitelistCountEl.textContent = String(whitelist.length);
     renderWhitelist(whitelist);
 }
