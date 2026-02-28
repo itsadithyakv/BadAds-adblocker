@@ -152,6 +152,21 @@ button {
     font-size: 12px;
 }
 
+.dashboard-cta {
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.dashboard-cta .help {
+    margin-bottom: 0;
+}
+
 .form-row {
     display: grid;
     grid-template-columns: 1fr auto;
