@@ -5,6 +5,7 @@ const whitelistCountEl = document.getElementById("whitelistCount");
 const whitelistInput = document.getElementById("whitelistInput");
 const addWhitelistBtn = document.getElementById("addWhitelist");
 const allowCurrentSiteBtn = document.getElementById("allowCurrentSite");
+const resetCounterBtn = document.getElementById("resetCounterBtn");
 const whitelistList = document.getElementById("whitelistList");
 
 function normalizeSite(value) {
@@ -126,4 +127,8 @@ allowCurrentSiteBtn.addEventListener("click", () => {
     getActiveTabHost((host) => {
         if (host) addToWhitelist(host);
     });
+});
+
+resetCounterBtn.addEventListener("click", () => {
+    chrome.storage.local.set({ blockedCount: 0 });
 });

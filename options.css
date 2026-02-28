@@ -94,6 +94,13 @@ button {
     padding: 10px 12px;
 }
 
+.card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
 .label {
     margin: 0;
     color: var(--muted);
@@ -176,4 +183,12 @@ input {
     border: 1px solid var(--line);
     padding: 4px 8px;
     font-size: 11px;
+}
+
+.small-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+    line-height: 1.2;
+    background: transparent;
+    color: var(--text);
 }
