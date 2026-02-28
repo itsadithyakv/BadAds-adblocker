@@ -1,51 +1,218 @@
-function getHostname(url) {
+const DEFAULT_STATE = {
+    enabled: true,
+    blockedCount: 0,
+    whitelist: [],
+    logs: []
+};
+
+const AD_KEYWORDS = [
+    "adservice",
+    "adsystem",
+    "doubleclick",
+    "googlesyndication",
+    "popads",
+    "clickadu",
+    "propellerads",
+    "taboola",
+    "outbrain",
+    "adnxs",
+    "adroll",
+    "push-notification",
+    "redirect",
+    "banner",
+    "sponsor",
+    "tracking"
+];
+
+const AD_REGEX = new RegExp(AD_KEYWORDS.join("|"), "i");
+const USER_GESTURE_ALLOW_MS = 4500;
+const lastUserInteractionByTab = new Map();
+
+function getHost(url) {
     try {
-        return new URL(url).hostname.replace("www.", "");
+        return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
     } catch {
         return null;
     }
 }
 
-// Initialize default state
-chrome.runtime.onInstalled.addListener(() => {
-    chrome.storage.local.set({
-        enabled: true,
-        blockedCount: 0
-    });
-});
-
-// Update badge
-function updateBadge(count) {
-    chrome.action.setBadgeText({ text: count > 0 ? count.toString() : "" });
-    chrome.action.setBadgeBackgroundColor({ color: "#ff6600" });
+function getRootHost(hostname) {
+    if (!hostname) return null;
+    const parts = hostname.split(".");
+    if (parts.length < 3) return hostname;
+    return parts.slice(-2).join(".");
 }
 
-chrome.tabs.onCreated.addListener((newTab) => {
-    chrome.storage.local.get(["enabled", "blockedCount"], (data) => {
-        if (!data.enabled) return;
-        if (!newTab.openerTabId) return;
+function isWhitelisted(host, whitelist) {
+    if (!host || !Array.isArray(whitelist)) return false;
+    return whitelist.some((entry) => {
+        const site = String(entry).toLowerCase().trim();
+        return host === site || host.endsWith(`.${site}`);
+    });
+}
 
-        setTimeout(() => {
-            chrome.tabs.get(newTab.id, (createdTab) => {
-                if (!createdTab || !createdTab.url) return;
+function isLikelyAdUrl(url) {
+    if (!url) return false;
+    return AD_REGEX.test(url);
+}
 
-                chrome.tabs.get(newTab.openerTabId, (openerTab) => {
-                    if (!openerTab || !openerTab.url) return;
+function shouldBlockTarget({ targetUrl, sourceUrl, whitelist, recentUserInteraction }) {
+    const targetHost = getHost(targetUrl);
+    if (!targetHost) return { block: false };
 
-                    const newHost = getHostname(createdTab.url);
-                    const openerHost = getHostname(openerTab.url);
+    const sourceHost = getHost(sourceUrl);
 
-                    if (!newHost || !openerHost) return;
+    if (isWhitelisted(targetHost, whitelist) || isWhitelisted(sourceHost, whitelist)) {
+        return { block: false };
+    }
 
-                    if (newHost !== openerHost) {
-                        chrome.tabs.remove(createdTab.id);
+    const targetRoot = getRootHost(targetHost);
+    const sourceRoot = getRootHost(sourceHost);
+    const crossDomain = Boolean(sourceRoot && targetRoot && sourceRoot !== targetRoot);
+    const adSignal = isLikelyAdUrl(targetUrl) || isLikelyAdUrl(targetHost);
 
-                        let newCount = (data.blockedCount || 0) + 1;
-                        chrome.storage.local.set({ blockedCount: newCount });
-                        updateBadge(newCount);
-                    }
-                });
+    const userLikelyInitiated = Boolean(recentUserInteraction);
+    const blockCrossDomain = crossDomain && !userLikelyInitiated;
+    const block = adSignal || blockCrossDomain;
+    return {
+        block,
+        targetHost,
+        sourceHost,
+        reason: adSignal ? "ad-signal" : blockCrossDomain ? "cross-domain-popup" : "none"
+    };
+}
+
+function getIconPath(enabled) {
+    return enabled
+        ? {
+              16: "icons/logoOn.png",
+              48: "icons/logoOn.png",
+              128: "icons/logoOn.png"
+          }
+        : {
+              16: "icons/logoOff.png",
+              48: "icons/logoOff.png",
+              128: "icons/logoOff.png"
+          };
+}
+
+function refreshToolbar(enabled, blockedCount) {
+    chrome.action.setIcon({ path: getIconPath(enabled) });
+
+    const badgeText = enabled ? (blockedCount > 0 ? String(blockedCount) : "ON") : "OFF";
+    chrome.action.setBadgeText({ text: badgeText });
+    chrome.action.setBadgeBackgroundColor({ color: enabled ? "#ffffff" : "#000000" });
+    chrome.action.setBadgeTextColor({ color: enabled ? "#000000" : "#ffffff" });
+    chrome.action.setTitle({
+        title: `BadAds: ${enabled ? "Protected" : "Paused"} | Popups Closed: ${blockedCount || 0}`
+    });
+}
+
+function ensureState(callback) {
+    chrome.storage.local.get(
+        ["enabled", "blockedCount", "whitelist", "logs"],
+        (current) => {
+            const merged = {
+                enabled: current.enabled ?? DEFAULT_STATE.enabled,
+                blockedCount: current.blockedCount ?? DEFAULT_STATE.blockedCount,
+                whitelist: Array.isArray(current.whitelist) ? current.whitelist : DEFAULT_STATE.whitelist,
+                logs: Array.isArray(current.logs) ? current.logs : DEFAULT_STATE.logs
+            };
+
+            chrome.storage.local.set(merged, () => callback(merged));
+        }
+    );
+}
+
+function recordBlocked(domain, reason) {
+    chrome.storage.local.get(["blockedCount", "logs", "enabled"], (data) => {
+        const newCount = (data.blockedCount || 0) + 1;
+        const newLogs = [
+            {
+                domain,
+                reason,
+                time: new Date().toLocaleString()
+            },
+            ...(data.logs || [])
+        ].slice(0, 100);
+
+        chrome.storage.local.set(
+            {
+                blockedCount: newCount,
+                logs: newLogs
+            },
+            () => refreshToolbar(data.enabled ?? true, newCount)
+        );
+    });
+}
+
+function evaluateAndBlock(details, urlFromEvent) {
+    chrome.storage.local.get(["enabled", "whitelist"], (state) => {
+        if (!state.enabled) return;
+
+        const targetUrl = urlFromEvent;
+        if (!targetUrl) return;
+
+        if (details.sourceTabId < 0) {
+            const result = shouldBlockTarget({
+                targetUrl,
+                sourceUrl: null,
+                whitelist: state.whitelist || [],
+                recentUserInteraction: false
             });
-        }, 800);
+            if (result.block) {
+                chrome.tabs.remove(details.tabId);
+                recordBlocked(result.targetHost || "unknown", result.reason);
+            }
+            return;
+        }
+
+        chrome.tabs.get(details.sourceTabId, (sourceTab) => {
+            if (chrome.runtime.lastError) return;
+            const lastInteraction = lastUserInteractionByTab.get(details.sourceTabId) || 0;
+            const recentUserInteraction = Date.now() - lastInteraction <= USER_GESTURE_ALLOW_MS;
+
+            const result = shouldBlockTarget({
+                targetUrl,
+                sourceUrl: sourceTab?.url || sourceTab?.pendingUrl || null,
+                whitelist: state.whitelist || [],
+                recentUserInteraction
+            });
+
+            if (result.block) {
+                chrome.tabs.remove(details.tabId);
+                recordBlocked(result.targetHost || "unknown", result.reason);
+            }
+        });
+    });
+}
+
+chrome.runtime.onMessage.addListener((message, sender) => {
+    if (message?.type !== "USER_INTERACTION") return;
+    if (!sender?.tab?.id) return;
+
+    lastUserInteractionByTab.set(sender.tab.id, Number(message.time) || Date.now());
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+    ensureState((state) => refreshToolbar(state.enabled, state.blockedCount));
+});
+
+chrome.runtime.onStartup.addListener(() => {
+    ensureState((state) => refreshToolbar(state.enabled, state.blockedCount));
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local") return;
+    if (!changes.enabled && !changes.blockedCount) return;
+
+    chrome.storage.local.get(["enabled", "blockedCount"], (data) => {
+        refreshToolbar(data.enabled ?? true, data.blockedCount || 0);
     });
 });
+
+chrome.webNavigation.onCreatedNavigationTarget.addListener((details) => {
+    evaluateAndBlock(details, details.url || null);
+});
+
+ensureState((state) => refreshToolbar(state.enabled, state.blockedCount));
