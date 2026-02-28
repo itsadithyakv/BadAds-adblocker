@@ -85,14 +85,16 @@ function shouldBlockTarget({ targetUrl, sourceUrl, whitelist, recentUserInteract
 function getIconPath(enabled) {
     return enabled
         ? {
-              16: "icons/logoOn.png",
-              48: "icons/logoOn.png",
-              128: "icons/logoOn.png"
+              16: "icons/logoOn16.png",
+              32: "icons/logoOn32.png",
+              48: "icons/logoOn48.png",
+              128: "icons/logoOn128.png"
           }
         : {
-              16: "icons/logoOff.png",
-              48: "icons/logoOff.png",
-              128: "icons/logoOff.png"
+              16: "icons/logoOff16.png",
+              32: "icons/logoOff32.png",
+              48: "icons/logoOff48.png",
+              128: "icons/logoOff128.png"
           };
 }
 

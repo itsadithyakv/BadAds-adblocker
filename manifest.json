@@ -11,12 +11,19 @@
   "background": {
     "service_worker": "background.js"
   },
+  "icons": {
+    "16": "icons/logoOn16.png",
+    "32": "icons/logoOn32.png",
+    "48": "icons/logoOn48.png",
+    "128": "icons/logoOn128.png"
+  },
   "action": {
     "default_popup": "options.html",
     "default_icon": {
-      "16": "icons/logoOn.png",
-      "48": "icons/logoOn.png",
-      "128": "icons/logoOn.png"
+      "16": "icons/logoOn16.png",
+      "32": "icons/logoOn32.png",
+      "48": "icons/logoOn48.png",
+      "128": "icons/logoOn128.png"
     }
   }
 }
