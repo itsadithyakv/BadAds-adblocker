@@ -1,44 +1,41 @@
-﻿# BadAds v1.3
+# BadAds
 
-BadAds is a Chrome extension that blocks intrusive ad and popup tabs with a simple, modern control panel.
+BadAds is a Chrome extension that detects and blocks intrusive popup ads, including script-triggered popups, with a lightweight control panel and analytics dashboard.
 
-## Features
+## Highlights
 
-- Smart popup blocking using:
+- Smart popup blocking based on:
   - ad-related URL/domain signal matching
   - cross-domain popup detection
-  - script-based `window.open` detection with opener-tab follow-up checks
-- Whitelist support:
-  - manually add allowed domains
-  - quick add current site
-  - remove whitelisted entries
-- Toolbar status behavior:
-  - icon changes by protection state (`logoOn` active, `logoOff` paused)
-  - badge shows only the number of blocked popups (no ON/OFF text)
-- Modern black-and-white popup UI with:
-  - centered `logoBar` header
-  - protection status text
-  - pause/resume toggle
-  - live counters for blocked popups and whitelist size
-- Dashboard analytics page with:
-  - 14-day blocked ads trend graph
-  - most blocked domain and top block reason
+  - script-based `window.open` detection
+- User-friendly controls:
+  - pause/resume protection
+  - domain whitelist (add, remove, allow current site)
+  - reset blocked counter
+- Live extension status:
+  - toolbar icon reflects protection state
+  - badge shows blocked popup count
+- Analytics dashboard:
+  - total blocked popups
+  - most blocked domain
+  - most common block reason
+  - 14-day blocked trend chart
   - top blocked domains table
-  - export as JSON or CSV
-- Persistent local storage for settings, counters, whitelist, and logs
+  - data export (`JSON`, `CSV`)
 
 ## How It Works
 
-BadAds listens for both browser-level popup tab creation and page script popup attempts (`window.open`). It evaluates source and destination domains, checks ad-like patterns, and closes tabs that match blocking rules unless a whitelist rule applies.
+BadAds uses a background service worker to evaluate popup events and close suspicious targets before they can interrupt browsing.
 
-The popup includes a Dashboard section that opens a full analytics page built from stored block logs.
+Detection sources:
+- Browser-level popup target creation (`webNavigation.onCreatedNavigationTarget`)
+- Script-driven popup attempts (`window.open`) via injected/page bridge scripts
 
-## Installation (Development)
-
-1. Open Chrome and go to `chrome://extensions/`.
-2. Enable **Developer mode**.
-3. Click **Load unpacked**.
-4. Select the `BadAds-adblocker` folder.
+Blocking is skipped when:
+- protection is paused
+- source or target is trusted
+- source or target matches a user whitelist rule
+- user interaction indicates a likely intentional popup
 
 ## Project Structure
 
@@ -47,29 +44,45 @@ BadAds-adblocker/
   manifest.json
   background.js
   content.js
+  injected-open-hook.js
   dashboard.html
   dashboard.css
   dashboard.js
-  injected-open-hook.js
   options.html
   options.css
   options.js
   icons/
 ```
 
+## Installation (Development)
+
+1. Open Chrome and navigate to `chrome://extensions/`.
+2. Enable **Developer mode**.
+3. Click **Load unpacked**.
+4. Select the `BadAds-adblocker` directory.
+
+## Usage
+
+1. Click the BadAds extension icon to open the control panel.
+2. Use **Pause/Resume** to toggle protection.
+3. Manage whitelist entries from the popup.
+4. Open **Dashboard** for analytics and exports.
+
 ## Permissions
 
-- `tabs`: inspect and close unwanted tabs
-- `webNavigation`: detect newly created navigation targets
-- `storage`: persist extension state and stats
+- `tabs`: inspect and close popup tabs, open dashboard page
+- `webNavigation`: detect newly created popup navigation targets
+- `storage`: persist settings, counters, whitelist, and logs
 
-## Icon Assets
+## Data Storage
 
-Use PNG files for extension icons:
+BadAds stores data locally using `chrome.storage.local`:
+- `enabled`
+- `blockedCount`
+- `whitelist`
+- `logs` (domain, reason, display time, timestamp)
 
-- `icons/logoOn.png` (colored/active)
-- `icons/logoOff.png` (grayscale/paused)
-- `icons/logoBar.png` (popup header banner)
+No external backend is required.
 
 ## License
 
