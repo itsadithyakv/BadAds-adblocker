@@ -27,6 +27,21 @@ const AD_KEYWORDS = [
 const AD_REGEX = new RegExp(AD_KEYWORDS.join("|"), "i");
 const USER_GESTURE_ALLOW_MS = 4500;
 const lastUserInteractionByTab = new Map();
+const TRUSTED_SITE_ALLOWLIST = [
+    "linkedin.com",
+    "instagram.com",
+    "facebook.com",
+    "x.com",
+    "twitter.com",
+    "youtube.com",
+    "google.com",
+    "github.com",
+    "reddit.com",
+    "wikipedia.org",
+    "microsoft.com",
+    "apple.com",
+    "amazon.com"
+];
 
 function getHost(url) {
     try {
@@ -51,6 +66,11 @@ function isWhitelisted(host, whitelist) {
     });
 }
 
+function isTrustedSite(host) {
+    if (!host) return false;
+    return TRUSTED_SITE_ALLOWLIST.some((site) => host === site || host.endsWith(`.${site}`));
+}
+
 function isLikelyAdUrl(url) {
     if (!url) return false;
     return AD_REGEX.test(url);
@@ -61,6 +81,10 @@ function shouldBlockTarget({ targetUrl, sourceUrl, whitelist, recentUserInteract
     if (!targetHost) return { block: false };
 
     const sourceHost = getHost(sourceUrl);
+
+    if (isTrustedSite(targetHost) || isTrustedSite(sourceHost)) {
+        return { block: false };
+    }
 
     if (isWhitelisted(targetHost, whitelist) || isWhitelisted(sourceHost, whitelist)) {
         return { block: false };
