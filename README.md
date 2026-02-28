@@ -20,11 +20,18 @@ BadAds is a Chrome extension that blocks intrusive ad and popup tabs with a simp
   - protection status text
   - pause/resume toggle
   - live counters for blocked popups and whitelist size
+- Dashboard analytics page with:
+  - 14-day blocked ads trend graph
+  - most blocked domain and top block reason
+  - top blocked domains table
+  - export as JSON or CSV
 - Persistent local storage for settings, counters, whitelist, and logs
 
 ## How It Works
 
 BadAds listens for both browser-level popup tab creation and page script popup attempts (`window.open`). It evaluates source and destination domains, checks ad-like patterns, and closes tabs that match blocking rules unless a whitelist rule applies.
+
+The popup includes a Dashboard section that opens a full analytics page built from stored block logs.
 
 ## Installation (Development)
 
@@ -40,6 +47,9 @@ BadAds-adblocker/
   manifest.json
   background.js
   content.js
+  dashboard.html
+  dashboard.css
+  dashboard.js
   injected-open-hook.js
   options.html
   options.css

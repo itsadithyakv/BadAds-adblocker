@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BadAds Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+    <main class="dashboard">
+        <header class="hero">
+            <h1>Analytics Dashboard</h1>
+            <p>Track popup blocking trends, top domains, and export your data.</p>
+        </header>
+
+        <section class="kpis">
+            <article class="kpi">
+                <p class="label">Total Blocked</p>
+                <p id="totalBlocked" class="value">0</p>
+            </article>
+            <article class="kpi">
+                <p class="label">Most Blocked Domain</p>
+                <p id="topDomain" class="value small">-</p>
+            </article>
+            <article class="kpi">
+                <p class="label">Most Common Reason</p>
+                <p id="topReason" class="value small">-</p>
+            </article>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2>Ads Blocked Trend (Last 14 Days)</h2>
+            </div>
+            <canvas id="trendChart" width="960" height="320" aria-label="Blocked ads trend chart"></canvas>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2>Top Blocked Domains</h2>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Domain</th>
+                        <th>Blocks</th>
+                    </tr>
+                </thead>
+                <tbody id="domainRows">
+                    <tr>
+                        <td colspan="2">No data available yet.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="panel actions">
+            <div class="panel-head">
+                <h2>Export</h2>
+            </div>
+            <div class="action-row">
+                <button id="exportJsonBtn">Export JSON</button>
+                <button id="exportCsvBtn" class="ghost">Export CSV</button>
+            </div>
+            <p class="hint">Includes logs, domain summary, reason summary, and daily trend.</p>
+        </section>
+    </main>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

@@ -191,7 +191,8 @@ function recordBlocked(domain, reason) {
             {
                 domain,
                 reason,
-                time: new Date().toLocaleString()
+                time: new Date().toLocaleString(),
+                ts: Date.now()
             },
             ...(data.logs || [])
         ].slice(0, 100);

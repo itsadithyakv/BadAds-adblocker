@@ -6,6 +6,7 @@ const whitelistInput = document.getElementById("whitelistInput");
 const addWhitelistBtn = document.getElementById("addWhitelist");
 const allowCurrentSiteBtn = document.getElementById("allowCurrentSite");
 const resetCounterBtn = document.getElementById("resetCounterBtn");
+const openDashboardBtn = document.getElementById("openDashboardBtn");
 const whitelistList = document.getElementById("whitelistList");
 let previousBlockedCount = null;
 
@@ -138,4 +139,8 @@ allowCurrentSiteBtn.addEventListener("click", () => {
 
 resetCounterBtn.addEventListener("click", () => {
     chrome.storage.local.set({ blockedCount: 0 });
+});
+
+openDashboardBtn.addEventListener("click", () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html") });
 });
