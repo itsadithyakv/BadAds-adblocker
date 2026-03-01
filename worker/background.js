@@ -31,21 +31,6 @@ const SCRIPT_POPUP_RETRY_DELAY_MS = 200;
 const TAB_BLOCK_CACHE_MS = 15000;
 const lastUserInteractionByTab = new Map();
 const blockedTabTimestamps = new Map();
-const TRUSTED_SITE_ALLOWLIST = [
-    "linkedin.com",
-    "instagram.com",
-    "facebook.com",
-    "x.com",
-    "twitter.com",
-    "youtube.com",
-    "google.com",
-    "github.com",
-    "reddit.com",
-    "wikipedia.org",
-    "microsoft.com",
-    "apple.com",
-    "amazon.com"
-];
 
 function getHost(url) {
     try {
@@ -68,11 +53,6 @@ function isWhitelisted(host, whitelist) {
         const site = String(entry).toLowerCase().trim();
         return host === site || host.endsWith(`.${site}`);
     });
-}
-
-function isTrustedSite(host) {
-    if (!host) return false;
-    return TRUSTED_SITE_ALLOWLIST.some((site) => host === site || host.endsWith(`.${site}`));
 }
 
 function isLikelyAdUrl(url) {
@@ -110,15 +90,11 @@ function closeAndRecordBlockedTab(tabId, domain, reason) {
     recordBlocked(domain, reason);
 }
 
-function shouldBlockTarget({ targetUrl, sourceUrl, whitelist, recentUserInteraction }) {
+function shouldBlockTarget({ targetUrl, sourceUrl, whitelist, recentUserInteraction, forceAutomated }) {
     const targetHost = getHost(targetUrl);
     if (!targetHost) return { block: false };
 
     const sourceHost = getHost(sourceUrl);
-
-    if (isTrustedSite(targetHost) || isTrustedSite(sourceHost)) {
-        return { block: false };
-    }
 
     if (isWhitelisted(targetHost, whitelist) || isWhitelisted(sourceHost, whitelist)) {
         return { block: false };
@@ -127,16 +103,29 @@ function shouldBlockTarget({ targetUrl, sourceUrl, whitelist, recentUserInteract
     const targetRoot = getRootHost(targetHost);
     const sourceRoot = getRootHost(sourceHost);
     const crossDomain = Boolean(sourceRoot && targetRoot && sourceRoot !== targetRoot);
-    const adSignal = isLikelyAdUrl(targetUrl) || isLikelyAdUrl(targetHost);
+    const actionType =
+        forceAutomated || !recentUserInteraction ? "automated" : "manual";
 
-    const userLikelyInitiated = Boolean(recentUserInteraction);
-    const blockCrossDomain = crossDomain && !userLikelyInitiated;
-    const block = adSignal || blockCrossDomain;
+    // Primary policy: any tab opened from a parent page to an unrelated site is blocked.
+    const blockCrossDomain = crossDomain;
+
+    // Secondary policy: same-site ad-like popups are blocked when they are automated/script-driven.
+    const adSignal = isLikelyAdUrl(targetUrl) || isLikelyAdUrl(targetHost);
+    const blockAdSignal = adSignal && actionType === "automated";
+
+    const block = blockCrossDomain || blockAdSignal;
+    const reason = blockCrossDomain
+        ? `${actionType}-cross-domain`
+        : blockAdSignal
+          ? "automated-ad-signal"
+          : "none";
+
     return {
         block,
         targetHost,
         sourceHost,
-        reason: adSignal ? "ad-signal" : blockCrossDomain ? "cross-domain-popup" : "none"
+        reason,
+        actionType
     };
 }
 
@@ -214,15 +203,7 @@ function evaluateAndBlock(details, urlFromEvent) {
         if (!targetUrl) return;
 
         if (details.sourceTabId < 0) {
-            const result = shouldBlockTarget({
-                targetUrl,
-                sourceUrl: null,
-                whitelist: state.whitelist || [],
-                recentUserInteraction: false
-            });
-            if (result.block) {
-                closeAndRecordBlockedTab(details.tabId, result.targetHost || "unknown", result.reason);
-            }
+            // No opener tab: treat as a direct/manual browser navigation.
             return;
         }
 
@@ -235,7 +216,8 @@ function evaluateAndBlock(details, urlFromEvent) {
                 targetUrl,
                 sourceUrl: sourceTab?.url || sourceTab?.pendingUrl || null,
                 whitelist: state.whitelist || [],
-                recentUserInteraction
+                recentUserInteraction,
+                forceAutomated: false
             });
 
             if (result.block) {
@@ -267,7 +249,8 @@ function tryBlockScriptPopupTabs({
                 targetUrl: candidateUrl,
                 sourceUrl,
                 whitelist,
-                recentUserInteraction
+                recentUserInteraction,
+                forceAutomated: true
             });
 
             if (!result.block) continue;
@@ -319,7 +302,7 @@ function handleScriptPopupAttempt(message, sender) {
 
 chrome.runtime.onMessage.addListener((message, sender) => {
     if (message?.type === "USER_INTERACTION") {
-        if (!sender?.tab?.id) return;
+        if (typeof sender?.tab?.id !== "number") return;
         lastUserInteractionByTab.set(sender.tab.id, Number(message.time) || Date.now());
         return;
     }

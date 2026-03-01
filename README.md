@@ -1,29 +1,75 @@
-﻿# BadAds v1.2
+# BadAds v1.3
 
-BadAds is a Chrome extension that blocks intrusive ad and popup tabs with a simple, modern control panel.
+BadAds is a Chrome extension that blocks intrusive popup/new-tab behavior while allowing normal manual browsing.
 
 ## Features
 
-- Smart popup blocking using:
-  - ad-related URL/domain signal matching
-  - cross-domain popup detection
+- Blocks new tabs opened to unrelated domains from a parent page.
+- Differentiates automated popup behavior from manual user actions.
 - Whitelist support:
-  - manually add allowed domains
-  - quick add current site
-  - remove whitelisted entries
-- Toolbar status behavior:
-  - icon changes by protection state (`logoOn` active, `logoOff` paused)
-  - badge shows only the number of blocked popups (no ON/OFF text)
-- Modern black-and-white popup UI with:
-  - centered `logoBar` header
-  - protection status text
-  - pause/resume toggle
-  - live counters for blocked popups and whitelist size
-- Persistent local storage for settings, counters, whitelist, and logs
+  - add/remove allowed domains
+  - allow current site in one click
+- Pause/Resume protection toggle.
+- Toolbar icon + badge status with blocked count.
+- Dashboard with:
+  - total blocked count
+  - top blocked domain
+  - top blocking reason
+  - 14-day trend chart
+  - JSON/CSV export
+- Persistent local storage for settings and analytics logs.
 
-## How It Works
+## How Everything Works
 
-When a new navigation target tab is created, BadAds evaluates the source and destination domains and checks for ad-like patterns. Tabs that match blocking rules are closed unless a whitelist rule applies.
+### 1) Scripts and responsibilities
+
+- `worker/background.js`: central policy engine (decision + blocking + logging + toolbar state).
+- `content/injected-open-hook.js`: wraps `window.open` in page context and reports script popup attempts.
+- `content/content.js`: forwards page events to the background worker and tracks user interaction pings.
+- `ui/options/*`: popup UI for pause/resume, whitelist management, counters, and dashboard open action.
+- `ui/dashboard/*`: analytics page that reads storage logs and renders KPIs, trend chart, top domains, and exports.
+
+### 2) Detection pipeline
+
+1. User/script triggers a new tab or popup.
+2. BadAds receives signals from:
+   - `chrome.webNavigation.onCreatedNavigationTarget` (new tab targets)
+   - `SCRIPT_POPUP_ATTEMPT` messages from the injected `window.open` hook
+3. Background logic resolves:
+   - source host (parent tab)
+   - target host (new tab URL)
+   - recent user interaction window (manual-likelihood signal)
+
+### 3) Blocking policy
+
+- If extension is paused (`enabled: false`): no blocking.
+- If source or target matches whitelist: allow.
+- If target root domain differs from source root domain (cross-domain child tab): block and close tab.
+- Same-site ad-signal URLs are blocked when classified as automated/script-driven.
+- Direct manual navigation without opener tab is allowed (for example: user opens a blank/new tab and types a URL).
+
+### 4) Manual vs automated differentiation
+
+- `content.js` reports user interactions (`pointerdown`, `click`, `keydown`, `touchstart`) to background.
+- Background keeps a short-lived interaction timestamp per tab.
+- Script popup attempts are force-labeled as automated.
+- Block logs record reason labels that include action context (for example `manual-cross-domain`, `automated-cross-domain`, `automated-ad-signal`).
+
+### 5) Storage model
+
+`chrome.storage.local` keys used by BadAds:
+
+- `enabled` (`boolean`): protection on/off
+- `blockedCount` (`number`): total blocked tabs
+- `whitelist` (`string[]`): allowed domains
+- `logs` (`Array<{domain, reason, time}>`): latest blocking records (up to 100)
+
+### 6) Dashboard data flow
+
+- Dashboard reads `blockedCount` + `logs` from storage.
+- Aggregates logs by domain/reason for KPIs and table.
+- Builds a 14-day daily bucket series for chart rendering.
+- Export buttons serialize logs into JSON or CSV files.
 
 ## Installation (Development)
 
@@ -37,26 +83,28 @@ When a new navigation target tab is created, BadAds evaluates the source and des
 ```text
 BadAds-adblocker/
   manifest.json
-  background.js
-  options.html
-  options.css
-  options.js
+  worker/
+    background.js
+  content/
+    content.js
+    injected-open-hook.js
+  ui/
+    options/
+      options.html
+      options.css
+      options.js
+    dashboard/
+      dashboard.html
+      dashboard.css
+      dashboard.js
   icons/
 ```
 
 ## Permissions
 
-- `tabs`: inspect and close unwanted tabs
-- `webNavigation`: detect newly created navigation targets
-- `storage`: persist extension state and stats
-
-## Icon Assets
-
-Use PNG files for extension icons:
-
-- `icons/logoOn.png` (colored/active)
-- `icons/logoOff.png` (grayscale/paused)
-- `icons/logoBar.png` (popup header banner)
+- `tabs`: inspect tab metadata and close blocked tabs
+- `webNavigation`: detect creation of new navigation targets
+- `storage`: persist settings, counters, whitelist, and logs
 
 ## License
 
