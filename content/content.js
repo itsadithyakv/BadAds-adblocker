@@ -13,7 +13,26 @@ function reportInteraction() {
     const now = Date.now();
     if (now - lastInteractionPing < INTERACTION_PING_INTERVAL_MS) return;
     lastInteractionPing = now;
-    sendMessage("USER_INTERACTION", { time: now });
+    sendMessage("USER_INTERACTION", {
+        time: now
+    });
+}
+
+function reportClickedLink(event) {
+    const anchor = event.target?.closest?.("a[href]");
+    if (!anchor) return;
+    if (!anchor.href || !/^https?:/i.test(anchor.href)) return;
+    const opensNewContext =
+        anchor.target === "_blank" ||
+        event.button === 1 ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey;
+    if (!opensNewContext) return;
+
+    sendMessage("LINK_CLICK", {
+        targetUrl: anchor.href
+    });
 }
 
 window.addEventListener("message", (event) => {
@@ -31,3 +50,5 @@ window.addEventListener("message", (event) => {
 ["pointerdown", "click", "keydown", "touchstart"].forEach((eventName) => {
     window.addEventListener(eventName, reportInteraction, { capture: true, passive: true });
 });
+
+window.addEventListener("click", reportClickedLink, { capture: true });
